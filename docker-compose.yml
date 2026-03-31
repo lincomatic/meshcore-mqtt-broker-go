@@ -1,0 +1,39 @@
+services:
+  broker:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/data
+    networks:
+      - internal
+    # Port is NOT exposed to host - Caddy reaches it via internal network
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${SSL_CERT_PATH}:/certs/cert.pem:ro
+      - ${SSL_KEY_PATH}:/certs/key.pem:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    env_file: .env
+    environment:
+      - SSL_CERT_PATH=/certs/cert.pem
+      - SSL_KEY_PATH=/certs/key.pem
+    networks:
+      - internal
+    depends_on:
+      - broker
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

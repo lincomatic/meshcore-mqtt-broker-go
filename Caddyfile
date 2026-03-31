@@ -1,0 +1,4 @@
+{$SERVER_HOST_NAME} {
+    tls {$SSL_CERT_PATH} {$SSL_KEY_PATH}
+    reverse_proxy broker:8883
+}
