@@ -150,6 +150,7 @@ func (c *Config) loadSubscriberConfig() error {
 		role := map[models.SubscriberRole]string{
 			models.SubscriberRoleAdmin:      "admin",
 			models.SubscriberRoleFullAccess: "meshcore_only",
+			models.SubscriberRoleWriteOnly:  "write_only",
 		}
 		log.Printf("[CONFIG] Loaded subscriber user: %s (role: %s, maxConnections: %d)",
 			user.Username, role[user.Role], user.MaxConnections)
@@ -278,22 +279,22 @@ func (c *Config) loadAbuseConfig() error {
 
 func parseSubscriberUser(envVar string, defaultMaxConn int) (*models.SubscriberUser, error) {
 	parts := strings.Split(envVar, ":")
-	if len(parts) < 2 {
-		return nil, fmt.Errorf("invalid format: expected at least username:password")
+	if len(parts) < 3 {
+		return nil, fmt.Errorf("invalid format: expected at least username:password:role")
 	}
 
 	username := strings.TrimSpace(parts[0])
 	password := strings.TrimSpace(parts[1])
-
-	role := models.SubscriberRoleFullAccess // default
-	if len(parts) > 2 && parts[2] != "" {
-		roleNum, err := strconv.Atoi(strings.TrimSpace(parts[2]))
-		if err == nil {
-			if roleNum == 1 || roleNum == 2 {
-				role = models.SubscriberRole(roleNum)
-			}
-		}
+	roleStr := strings.TrimSpace(parts[2])
+	if roleStr == "" {
+		return nil, fmt.Errorf("invalid format: role is required")
 	}
+
+	roleNum, err := strconv.Atoi(roleStr)
+	if err != nil || (roleNum != 1 && roleNum != 2 && roleNum != 3) {
+		return nil, fmt.Errorf("invalid role: must be 1, 2, or 3")
+	}
+	role := models.SubscriberRole(roleNum)
 
 	maxConn := defaultMaxConn
 	if len(parts) > 3 && parts[3] != "" {

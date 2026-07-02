@@ -143,8 +143,18 @@ func (h *authHook) OnACLCheck(cl *mqtt.Client, topic string, write bool) bool {
 	if clientType == string(models.ClientTypeSubscriber) {
 		role := parseSubscriberRole(getUserProp(cl, "role"))
 
+		if role == models.SubscriberRoleAdmin {
+			log.Printf("%s [AUTHZ] ✓ Subscribe authorized -> %s", logPrefix, topic)
+			return true
+		}
+
+		if role == models.SubscriberRoleWriteOnly {
+			log.Printf("%s [AUTHZ] ✗ Subscribe denied (role 3 has no read access) -> %s", logPrefix, topic)
+			return false
+		}
+
 		if role == models.SubscriberRoleFullAccess {
-			if isExplicitInternalTopicFilter(topic) {
+			if isInternalTopicPath(topic) {
 				log.Printf("%s [AUTHZ] ✗ Subscribe denied (role 2 internal topics hidden) -> %s", logPrefix, topic)
 				return false
 			}
@@ -158,8 +168,8 @@ func (h *authHook) OnACLCheck(cl *mqtt.Client, topic string, write bool) bool {
 			return false
 		}
 
-		log.Printf("%s [AUTHZ] ✓ Subscribe authorized -> %s", logPrefix, topic)
-		return true
+		log.Printf("%s [AUTHZ] ✗ Subscribe denied (invalid subscriber role) -> %s", logPrefix, topic)
+		return false
 	}
 
 	log.Printf("%s [AUTHZ] ✗ Subscribe denied (unknown client type) -> %s", logPrefix, topic)
@@ -226,6 +236,16 @@ func (h *authHook) authorizeSubscriberPublish(logPrefix, username, roleStr, topi
 		return true
 	}
 
+	if role == models.SubscriberRoleWriteOnly {
+		if (topic == "meshcore" || strings.HasPrefix(topic, "meshcore/")) && !isInternalTopicPath(topic) {
+			log.Printf("%s [AUTHZ] ✓ Role 3 publish authorized -> %s", logPrefix, topic)
+			return true
+		}
+
+		log.Printf("%s [AUTHZ] ✗ Publish denied (role 3 limited to non-internal meshcore/*) -> %s", logPrefix, topic)
+		return false
+	}
+
 	log.Printf("%s [AUTHZ] ✗ Publish denied (subscriber) -> %s", logPrefix, topic)
 	return false
 }
@@ -236,12 +256,14 @@ func parseSubscriberRole(roleStr string) models.SubscriberRole {
 		return models.SubscriberRoleAdmin
 	case "2":
 		return models.SubscriberRoleFullAccess
+	case "3":
+		return models.SubscriberRoleWriteOnly
 	default:
-		return models.SubscriberRoleFullAccess
+		return 0
 	}
 }
 
-func isExplicitInternalTopicFilter(topic string) bool {
+func isInternalTopicPath(topic string) bool {
 	return topic == "internal" ||
 		strings.HasSuffix(topic, "/internal") ||
 		strings.Contains(topic, "/internal/")

@@ -16,6 +16,7 @@ type SubscriberRole int
 const (
 	SubscriberRoleAdmin      SubscriberRole = 1 // Full access + can delete retained messages
 	SubscriberRoleFullAccess SubscriberRole = 2 // Meshcore-only access with internal topics hidden
+	SubscriberRoleWriteOnly  SubscriberRole = 3 // Write-only access to meshcore topics, excluding internal
 )
 
 // ClientTrustState represents the trust and behavioral state of a connected client
