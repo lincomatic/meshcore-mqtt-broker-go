@@ -141,6 +141,23 @@ func (h *authHook) OnACLCheck(cl *mqtt.Client, topic string, write bool) bool {
 	}
 
 	if clientType == string(models.ClientTypeSubscriber) {
+		role := parseSubscriberRole(getUserProp(cl, "role"))
+
+		if role == models.SubscriberRoleFullAccess {
+			if isExplicitInternalTopicFilter(topic) {
+				log.Printf("%s [AUTHZ] ✗ Subscribe denied (role 2 internal topics hidden) -> %s", logPrefix, topic)
+				return false
+			}
+
+			if topic == "meshcore" || strings.HasPrefix(topic, "meshcore/") {
+				log.Printf("%s [AUTHZ] ✓ Subscribe authorized (role 2 meshcore scope) -> %s", logPrefix, topic)
+				return true
+			}
+
+			log.Printf("%s [AUTHZ] ✗ Subscribe denied (role 2 limited to meshcore/*) -> %s", logPrefix, topic)
+			return false
+		}
+
 		log.Printf("%s [AUTHZ] ✓ Subscribe authorized -> %s", logPrefix, topic)
 		return true
 	}
@@ -192,10 +209,7 @@ func (h *authHook) authorizePublish(logPrefix, publicKey, topic string) bool {
 }
 
 func (h *authHook) authorizeSubscriberPublish(logPrefix, username, roleStr, topic string) bool {
-	role := models.SubscriberRoleLimited
-	if roleStr == "1" {
-		role = models.SubscriberRoleAdmin
-	}
+	role := parseSubscriberRole(roleStr)
 
 	// Admin can delete retained messages (empty payload to retained topic)
 	// Admin can publish to serial/commands
@@ -214,6 +228,23 @@ func (h *authHook) authorizeSubscriberPublish(logPrefix, username, roleStr, topi
 
 	log.Printf("%s [AUTHZ] ✗ Publish denied (subscriber) -> %s", logPrefix, topic)
 	return false
+}
+
+func parseSubscriberRole(roleStr string) models.SubscriberRole {
+	switch roleStr {
+	case "1":
+		return models.SubscriberRoleAdmin
+	case "2":
+		return models.SubscriberRoleFullAccess
+	default:
+		return models.SubscriberRoleFullAccess
+	}
+}
+
+func isExplicitInternalTopicFilter(topic string) bool {
+	return topic == "internal" ||
+		strings.HasSuffix(topic, "/internal") ||
+		strings.Contains(topic, "/internal/")
 }
 
 // getUserProp retrieves a user property from client session

@@ -149,8 +149,7 @@ func (c *Config) loadSubscriberConfig() error {
 		c.Subscriber.Users[user.Username] = user
 		role := map[models.SubscriberRole]string{
 			models.SubscriberRoleAdmin:      "admin",
-			models.SubscriberRoleFullAccess: "full_access",
-			models.SubscriberRoleLimited:    "limited",
+			models.SubscriberRoleFullAccess: "meshcore_only",
 		}
 		log.Printf("[CONFIG] Loaded subscriber user: %s (role: %s, maxConnections: %d)",
 			user.Username, role[user.Role], user.MaxConnections)
@@ -286,11 +285,11 @@ func parseSubscriberUser(envVar string, defaultMaxConn int) (*models.SubscriberU
 	username := strings.TrimSpace(parts[0])
 	password := strings.TrimSpace(parts[1])
 
-	role := models.SubscriberRoleLimited // default
+	role := models.SubscriberRoleFullAccess // default
 	if len(parts) > 2 && parts[2] != "" {
 		roleNum, err := strconv.Atoi(strings.TrimSpace(parts[2]))
 		if err == nil {
-			if roleNum == 1 || roleNum == 2 || roleNum == 3 {
+			if roleNum == 1 || roleNum == 2 {
 				role = models.SubscriberRole(roleNum)
 			}
 		}
