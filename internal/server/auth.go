@@ -33,6 +33,7 @@ func (h *authHook) OnConnectAuthenticate(cl *mqtt.Client, pk packets.Packet) boo
 	username := string(pk.Connect.Username)
 	password := string(pk.Connect.Password)
 	logPrefix := fmt.Sprintf("[C:%s]", cl.ID)
+	listenerID := cl.Net.Listener
 
 	log.Printf("%s [AUTH] Authentication attempt - Username: %s", logPrefix, username)
 
@@ -53,6 +54,11 @@ func (h *authHook) OnConnectAuthenticate(cl *mqtt.Client, pk packets.Packet) boo
 			Key: "role", Val: fmt.Sprintf("%d", user.Role),
 		})
 		return true
+	}
+
+	if isSubscriberOnlyListener(listenerID) {
+		log.Printf("%s [AUTH] ✗ JWT publisher auth is disabled on listener %s", logPrefix, listenerID)
+		return false
 	}
 
 	// --- Publisher auth (v1_{PUBLIC_KEY}) ---
@@ -276,6 +282,10 @@ func isInternalTopicPath(topic string) bool {
 
 func isWildcardSubscriptionFilter(topic string) bool {
 	return strings.ContainsAny(topic, "+#")
+}
+
+func isSubscriberOnlyListener(listenerID string) bool {
+	return listenerID == listenerMQTT || listenerID == listenerMQTTS
 }
 
 // getUserProp retrieves a user property from client session

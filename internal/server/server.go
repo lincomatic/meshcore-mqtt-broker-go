@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log"
 	"log/slog"
@@ -19,7 +20,14 @@ type Broker struct {
 	limiter *ratelimit.Limiter
 }
 
-// New creates and starts the MQTT broker with a WebSocket listener
+const (
+	listenerWS    = "ws1"
+	listenerWSS   = "wss1"
+	listenerMQTT  = "mqtt1"
+	listenerMQTTS = "mqtts1"
+)
+
+// New creates and starts the MQTT broker with any configured listeners.
 func New(cfg *config.Config) (*Broker, error) {
 	server := mqtt.New(&mqtt.Options{
 		Logger: slog.Default(),
@@ -38,14 +46,54 @@ func New(cfg *config.Config) (*Broker, error) {
 		return nil, fmt.Errorf("failed to add auth hook: %w", err)
 	}
 
-	// WebSocket listener
-	addr := fmt.Sprintf("%s:%d", cfg.MQTT.Host, cfg.MQTT.Port)
-	ws := listeners.NewWebsocket(listeners.Config{
-		ID:      "ws1",
-		Address: addr,
-	})
-	if err := server.AddListener(ws); err != nil {
-		return nil, fmt.Errorf("failed to add websocket listener: %w", err)
+	var tlsConfig *tls.Config
+	if cfg.MQTT.WSSPort > 0 || cfg.MQTT.MQTTSPort > 0 {
+		pair, err := tls.LoadX509KeyPair(cfg.MQTT.CertPath, cfg.MQTT.KeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load TLS certificate: %w", err)
+		}
+		tlsConfig = &tls.Config{Certificates: []tls.Certificate{pair}}
+	}
+
+	addedListeners := 0
+	if cfg.MQTT.WSPort > 0 {
+		addr := fmt.Sprintf("%s:%d", cfg.MQTT.Host, cfg.MQTT.WSPort)
+		if err := server.AddListener(listeners.NewWebsocket(listeners.Config{ID: listenerWS, Address: addr})); err != nil {
+			return nil, fmt.Errorf("failed to add WS listener: %w", err)
+		}
+		addedListeners++
+		log.Printf("[SERVER] WebSocket MQTT listening on: ws://%s", addr)
+	}
+
+	if cfg.MQTT.WSSPort > 0 {
+		addr := fmt.Sprintf("%s:%d", cfg.MQTT.Host, cfg.MQTT.WSSPort)
+		if err := server.AddListener(listeners.NewWebsocket(listeners.Config{ID: listenerWSS, Address: addr, TLSConfig: tlsConfig})); err != nil {
+			return nil, fmt.Errorf("failed to add WSS listener: %w", err)
+		}
+		addedListeners++
+		log.Printf("[SERVER] Secure WebSocket MQTT listening on: wss://%s", addr)
+	}
+
+	if cfg.MQTT.MQTTPort > 0 {
+		addr := fmt.Sprintf("%s:%d", cfg.MQTT.Host, cfg.MQTT.MQTTPort)
+		if err := server.AddListener(listeners.NewTCP(listeners.Config{ID: listenerMQTT, Address: addr})); err != nil {
+			return nil, fmt.Errorf("failed to add MQTT listener: %w", err)
+		}
+		addedListeners++
+		log.Printf("[SERVER] Native MQTT listening on: mqtt://%s", addr)
+	}
+
+	if cfg.MQTT.MQTTSPort > 0 {
+		addr := fmt.Sprintf("%s:%d", cfg.MQTT.Host, cfg.MQTT.MQTTSPort)
+		if err := server.AddListener(listeners.NewTCP(listeners.Config{ID: listenerMQTTS, Address: addr, TLSConfig: tlsConfig})); err != nil {
+			return nil, fmt.Errorf("failed to add MQTTS listener: %w", err)
+		}
+		addedListeners++
+		log.Printf("[SERVER] Secure native MQTT listening on: mqtts://%s", addr)
+	}
+
+	if addedListeners == 0 {
+		return nil, fmt.Errorf("no listeners configured")
 	}
 
 	// Start serving (non-blocking)
@@ -56,9 +104,8 @@ func New(cfg *config.Config) (*Broker, error) {
 	}()
 
 	log.Println("╔════════════════════════════════════════════════════════════╗")
-	log.Println("║         MeshCore MQTT Broker (WebSocket / Go)             ║")
+	log.Println("║        MeshCore MQTT Broker (Native + WebSocket)          ║")
 	log.Println("╚════════════════════════════════════════════════════════════╝")
-	log.Printf("[SERVER] WebSocket MQTT listening on: ws://%s", addr)
 	log.Printf("[SERVER] Subscribers configured: %d", len(cfg.Subscriber.Users))
 	if cfg.MQTT.ExpectedAudience != "" {
 		log.Printf("[SERVER] Audience validation: %s", cfg.MQTT.ExpectedAudience)

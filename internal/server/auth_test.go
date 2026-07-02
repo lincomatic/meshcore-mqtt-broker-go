@@ -6,6 +6,7 @@ import (
 	mqtt "github.com/mochi-mqtt/server/v2"
 	"github.com/mochi-mqtt/server/v2/packets"
 
+	"github.com/lincomatic/meshcore-mqtt-broker-go/internal/config"
 	"github.com/lincomatic/meshcore-mqtt-broker-go/internal/models"
 )
 
@@ -59,6 +60,21 @@ func TestAuthorizeSubscriberPublishRoleThree(t *testing.T) {
 				t.Fatalf("authorizeSubscriberPublish(%q) = %v, want %v", test.topic, got, test.want)
 			}
 		})
+	}
+}
+
+func TestOnConnectAuthenticateRejectsJWTOnNativeMQTT(t *testing.T) {
+	hook := &authHook{
+		broker: &Broker{cfg: &config.Config{Subscriber: config.SubscriberConfig{Users: map[string]*models.SubscriberUser{}}}},
+	}
+
+	client := &mqtt.Client{ID: "test-client", Net: mqtt.ClientConnection{Listener: listenerMQTT}}
+	packet := packets.Packet{}
+	packet.Connect.Username = []byte("v1_7E7662676F7F0850A8A355BAAFBFC1EB7B4174C340442D7D7161C9474A2C9400")
+	packet.Connect.Password = []byte("dummy-token")
+
+	if hook.OnConnectAuthenticate(client, packet) {
+		t.Fatal("expected native MQTT listener to reject JWT publisher auth")
 	}
 }
 

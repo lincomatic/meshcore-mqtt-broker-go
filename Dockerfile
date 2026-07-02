@@ -23,6 +23,6 @@ COPY --from=builder /build/broker .
 # Data directory for abuse-detection.db
 RUN mkdir -p /data
 
-EXPOSE 8883
+EXPOSE 1883 8883 2002 443
 
 ENTRYPOINT ["./broker"]

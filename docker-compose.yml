@@ -3,38 +3,11 @@ services:
     build: .
     restart: unless-stopped
     env_file: .env
+    ports:
+      - "${MQTT_WS_PORT:-2002}:${MQTT_WS_PORT:-2002}"
+      - "${MQTT_WSS_PORT:-443}:${MQTT_WSS_PORT:-443}"
+      - "${MQTT_MQTT_PORT:-1883}:${MQTT_MQTT_PORT:-1883}"
+      - "${MQTT_MQTTS_PORT:-8883}:${MQTT_MQTTS_PORT:-8883}"
     volumes:
       - ./data:/data
-    networks:
-      - internal
-    # Broker is internal-only; Caddy terminates TLS and proxies to MQTT_WS_PORT
-
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "${MQTT_WS_PROXY_PORT}:${MQTT_WS_PROXY_PORT}"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ${SSL_CERT_PATH}:/certs/cert.pem:ro
-      - ${SSL_KEY_PATH}:/certs/key.pem:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    env_file: .env
-    environment:
-      - SSL_CERT_PATH=/certs/cert.pem
-      - SSL_KEY_PATH=/certs/key.pem
-      - MQTT_WS_PORT=${MQTT_WS_PORT}
-      - MQTT_WS_PROXY_PORT=${MQTT_WS_PROXY_PORT}
-    networks:
-      - internal
-    depends_on:
-      - broker
-
-networks:
-  internal:
-    driver: bridge
-
-volumes:
-  caddy_data:
-  caddy_config:
+    # Compose still publishes the four protocol ports; the broker only listens on modes configured in .env.

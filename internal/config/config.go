@@ -22,8 +22,13 @@ type Config struct {
 
 // MQTTConfig holds MQTT server configuration
 type MQTTConfig struct {
-	Port             int
+	WSPort           int
+	WSSPort          int
+	MQTTPort         int
+	MQTTSPort        int
 	Host             string
+	CertPath         string
+	KeyPath          string
 	ExpectedAudience string
 }
 
@@ -95,20 +100,35 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) loadMQTTConfig() error {
-	port, err := getRequiredInt("MQTT_WS_PORT")
-	if err != nil {
-		return err
-	}
-
 	host, err := getRequiredString("MQTT_HOST")
 	if err != nil {
 		return err
 	}
 
+	wsPort := getOptionalInt("MQTT_WS_PORT", 0)
+	wssPort := getOptionalInt("MQTT_WSS_PORT", 0)
+	mqttPort := getOptionalInt("MQTT_MQTT_PORT", 0)
+	mqttsPort := getOptionalInt("MQTT_MQTTS_PORT", 0)
+
+	certPath := os.Getenv("SSL_CERT_PATH")
+	keyPath := os.Getenv("SSL_KEY_PATH")
+	if (wssPort > 0 || mqttsPort > 0) && (certPath == "" || keyPath == "") {
+		return fmt.Errorf("SSL_CERT_PATH and SSL_KEY_PATH are required when MQTT_WSS_PORT or MQTT_MQTTS_PORT is configured")
+	}
+
 	c.MQTT = MQTTConfig{
-		Port:             port,
+		WSPort:           wsPort,
+		WSSPort:          wssPort,
+		MQTTPort:         mqttPort,
+		MQTTSPort:        mqttsPort,
 		Host:             host,
+		CertPath:         certPath,
+		KeyPath:          keyPath,
 		ExpectedAudience: os.Getenv("AUTH_EXPECTED_AUDIENCE"),
+	}
+
+	if wsPort == 0 && wssPort == 0 && mqttPort == 0 && mqttsPort == 0 {
+		return fmt.Errorf("at least one listener port must be configured: MQTT_WS_PORT, MQTT_WSS_PORT, MQTT_MQTT_PORT, or MQTT_MQTTS_PORT")
 	}
 
 	return nil
