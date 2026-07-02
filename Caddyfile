@@ -1,4 +1,4 @@
-{$SERVER_HOST_NAME} {
+{$SERVER_HOST_NAME}:{$MQTT_WS_PROXY_PORT} {
     tls {$SSL_CERT_PATH} {$SSL_KEY_PATH}
-    reverse_proxy broker:8883
+    reverse_proxy broker:{$MQTT_WS_PORT}
 }

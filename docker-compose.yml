@@ -7,14 +7,13 @@ services:
       - ./data:/data
     networks:
       - internal
-    # Port is NOT exposed to host - Caddy reaches it via internal network
+    # Broker is internal-only; Caddy terminates TLS and proxies to MQTT_WS_PORT
 
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "${MQTT_WS_PROXY_PORT}:${MQTT_WS_PROXY_PORT}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ${SSL_CERT_PATH}:/certs/cert.pem:ro
@@ -25,6 +24,8 @@ services:
     environment:
       - SSL_CERT_PATH=/certs/cert.pem
       - SSL_KEY_PATH=/certs/key.pem
+      - MQTT_WS_PORT=${MQTT_WS_PORT}
+      - MQTT_WS_PROXY_PORT=${MQTT_WS_PROXY_PORT}
     networks:
       - internal
     depends_on:
