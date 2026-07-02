@@ -19,10 +19,13 @@ func TestOnACLCheckSubscriberReadRules(t *testing.T) {
 		want  bool
 	}{
 		{name: "admin can read internal", role: models.SubscriberRoleAdmin, topic: "meshcore/SEA/ABC/internal", want: true},
+		{name: "role 2 can subscribe broad wildcard", role: models.SubscriberRoleFullAccess, topic: "#", want: true},
 		{name: "role 2 can read meshcore wildcard scope", role: models.SubscriberRoleFullAccess, topic: "meshcore/#", want: true},
+		{name: "role 2 can read concrete meshcore topic", role: models.SubscriberRoleFullAccess, topic: "meshcore/SEA/ABC/status", want: true},
 		{name: "role 2 cannot explicitly read internal", role: models.SubscriberRoleFullAccess, topic: "meshcore/SEA/ABC/internal", want: false},
 		{name: "role 2 cannot read outside meshcore", role: models.SubscriberRoleFullAccess, topic: "$SYS/broker/uptime", want: false},
-		{name: "role 3 cannot read at all", role: models.SubscriberRoleWriteOnly, topic: "meshcore/#", want: false},
+		{name: "role 3 wildcard subscribe allowed to avoid client errors", role: models.SubscriberRoleWriteOnly, topic: "meshcore/#", want: true},
+		{name: "role 3 still cannot read concrete topic", role: models.SubscriberRoleWriteOnly, topic: "meshcore/SEA/ABC/status", want: false},
 	}
 
 	for _, test := range tests {

@@ -149,26 +149,31 @@ func (h *authHook) OnACLCheck(cl *mqtt.Client, topic string, write bool) bool {
 		}
 
 		if role == models.SubscriberRoleWriteOnly {
-			log.Printf("%s [AUTHZ] ✗ Subscribe denied (role 3 has no read access) -> %s", logPrefix, topic)
+			// Allow broad subscribe filters to avoid client-side subscribe errors;
+			// concrete deliveries are still denied below because role 3 has no read access.
+			if isWildcardSubscriptionFilter(topic) {
+				return true
+			}
 			return false
 		}
 
 		if role == models.SubscriberRoleFullAccess {
 			if isInternalTopicPath(topic) {
-				log.Printf("%s [AUTHZ] ✗ Subscribe denied (role 2 internal topics hidden) -> %s", logPrefix, topic)
 				return false
 			}
 
-			if topic == "meshcore" || strings.HasPrefix(topic, "meshcore/") {
-				log.Printf("%s [AUTHZ] ✓ Subscribe authorized (role 2 meshcore scope) -> %s", logPrefix, topic)
+			// Allow broad subscription filters (e.g. #, +/+/...) and enforce scope per delivered topic.
+			if isWildcardSubscriptionFilter(topic) {
 				return true
 			}
 
-			log.Printf("%s [AUTHZ] ✗ Subscribe denied (role 2 limited to meshcore/*) -> %s", logPrefix, topic)
+			if topic == "meshcore" || strings.HasPrefix(topic, "meshcore/") {
+				return true
+			}
+
 			return false
 		}
 
-		log.Printf("%s [AUTHZ] ✗ Subscribe denied (invalid subscriber role) -> %s", logPrefix, topic)
 		return false
 	}
 
@@ -267,6 +272,10 @@ func isInternalTopicPath(topic string) bool {
 	return topic == "internal" ||
 		strings.HasSuffix(topic, "/internal") ||
 		strings.Contains(topic, "/internal/")
+}
+
+func isWildcardSubscriptionFilter(topic string) bool {
+	return strings.ContainsAny(topic, "+#")
 }
 
 // getUserProp retrieves a user property from client session
